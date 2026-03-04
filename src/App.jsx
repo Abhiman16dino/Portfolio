@@ -164,7 +164,7 @@ function MeshBackground() {
       buildGrid()
     }
 
-    const drawLine = (a, b) => {
+    const drawLine = (a, b, shimmer) => {
       if (!a || !b) return
       const dx = a.x - b.x
       const dy = a.y - b.y
@@ -176,7 +176,7 @@ function MeshBackground() {
         Math.abs(a.x / width - 0.5),
         Math.abs(b.x / width - 0.5),
       )
-      const edgeContrast = 0.1 + edgeBoost * 0.35
+      const edgeContrast = 0.18 + edgeBoost * 0.5 + shimmer * 0.12
       ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * edgeContrast})`
       ctx.beginPath()
       ctx.moveTo(a.x, a.y)
@@ -185,11 +185,13 @@ function MeshBackground() {
     }
 
     const animate = () => {
+      const time = performance.now() * 0.001
+      const shimmer = (Math.sin(time * 1.8) + 1) * 0.5
       ctx.clearRect(0, 0, width, height)
-      ctx.lineWidth = 1
+      ctx.lineWidth = 1 + shimmer * 0.4
 
       const { x: mx, y: my, active } = mouse.current
-      points.forEach((point) => {
+      points.forEach((point, index) => {
         if (active) {
           const dx = point.x - mx
           const dy = point.y - my
@@ -201,6 +203,13 @@ function MeshBackground() {
             point.vy += (dy / dist) * force
           }
         }
+
+        const wave = Math.sin(time * 1.2 + index * 0.12) * 18
+        const waveX = Math.cos(time * 0.95 + index * 0.18) * 12
+        const targetX = point.ox + waveX
+        const targetY = point.oy + wave
+        point.vx += (targetX - point.x) * 0.02
+        point.vy += (targetY - point.y) * 0.02
 
         point.vx += (point.ox - point.x) * 0.015
         point.vy += (point.oy - point.y) * 0.015
@@ -214,13 +223,14 @@ function MeshBackground() {
         for (let col = 0; col < cols; col += 1) {
           const index = row * cols + col
           const point = points[index]
-          drawLine(point, points[index + 1])
-          drawLine(point, points[index + cols])
-          drawLine(point, points[index + cols + 1])
+          drawLine(point, points[index + 1], shimmer)
+          drawLine(point, points[index + cols], shimmer)
+          drawLine(point, points[index + cols + 1], shimmer)
         }
       }
 
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.78)'
+      const pulse = 0.6 + Math.sin(time * 2.2) * 0.25
+      ctx.fillStyle = `rgba(255, 255, 255, ${pulse})`
       points.forEach((point) => {
         ctx.beginPath()
         ctx.arc(point.x, point.y, 1.6, 0, Math.PI * 2)
