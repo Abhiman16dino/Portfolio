@@ -156,6 +156,91 @@ main {
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
 
+.intro {
+  justify-content: center;
+  perspective: 1200px;
+}
+
+.intro-stage {
+  position: relative;
+  width: min(1400px, 96vw);
+  min-height: 80vh;
+  display: grid;
+  place-items: center;
+  transform-style: preserve-3d;
+  animation: intro-float 20s ease-in-out infinite;
+}
+
+.intro-stage::before {
+  content: "";
+  position: absolute;
+  inset: -20% -12% -35%;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), transparent 60%);
+  opacity: 0.4;
+  transform: translateZ(-160px) scale(1.1);
+}
+
+.intro-title {
+  position: relative;
+  font-size: clamp(6rem, 18vw, 14rem);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: center;
+  font-weight: 800;
+  color: #f5f5f5;
+  text-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.35),
+    0 2px 0 rgba(0, 0, 0, 0.4),
+    0 3px 0 rgba(0, 0, 0, 0.45),
+    0 4px 0 rgba(0, 0, 0, 0.5),
+    0 6px 0 rgba(0, 0, 0, 0.55),
+    0 8px 0 rgba(0, 0, 0, 0.6),
+    0 10px 0 rgba(0, 0, 0, 0.65),
+    0 12px 0 rgba(0, 0, 0, 0.7),
+    0 14px 0 rgba(0, 0, 0, 0.75),
+    0 16px 0 rgba(0, 0, 0, 0.8);
+  line-height: 0.9;
+  transform-style: preserve-3d;
+  transform: translateZ(160px) rotateX(-8deg);
+  animation: intro-cinematic 22s ease-in-out infinite;
+}
+
+.intro-title .intro-letter {
+  display: inline-block;
+  transform: translate3d(var(--split-offset, 0px), 0, var(--split-z, 0px));
+  transition: transform 0.4s ease;
+  will-change: transform;
+}
+
+.intro-title .intro-letter.space {
+  width: 0.35em;
+}
+
+
+@keyframes intro-cinematic {
+  0% {
+    transform: translateZ(110px) rotateX(-10deg) rotateY(6deg);
+  }
+  50% {
+    transform: translateZ(160px) rotateX(4deg) rotateY(-6deg) scale(1.015);
+  }
+  100% {
+    transform: translateZ(110px) rotateX(-10deg) rotateY(6deg);
+  }
+}
+
+@keyframes intro-float {
+  0% {
+    transform: translateY(0) rotateX(0deg);
+  }
+  50% {
+    transform: translateY(-14px) rotateX(3deg);
+  }
+  100% {
+    transform: translateY(0) rotateX(0deg);
+  }
+}
+
 .hero {
   padding-top: 9rem;
 }
@@ -474,6 +559,10 @@ main {
   .scroll-panel {
     padding: 5rem 6vw;
     min-height: auto;
+  }
+
+  .intro-stage {
+    min-height: 55vh;
   }
 
   .hero-meta {

@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react'
 import './App.css'
 
+const introName = 'LADNOM'
+
+const introNotes = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25]
+
 const floatingPanels = [
   {
     title: 'Oracle · SMTS',
@@ -271,6 +275,16 @@ function App() {
   const scrollProgress = useRef(0)
   const sectionsRef = useRef([])
   const footerRef = useRef(null)
+  const introStageRef = useRef(null)
+  const introTitleRef = useRef(null)
+  const introLettersRef = useRef([])
+  const audioContextRef = useRef(null)
+  const masterGainRef = useRef(null)
+  const lastPlayedRef = useRef([])
+  const lastSplitRef = useRef(-1)
+  const audioEnabledRef = useRef(false)
+
+  const introLetters = [...introName]
 
   const setSectionRef = (node) => {
     if (node && !sectionsRef.current.includes(node)) {
@@ -318,6 +332,157 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const stage = introStageRef.current
+    const title = introTitleRef.current
+    const letters = introLettersRef.current
+
+    if (!stage || !title || !letters.length) return undefined
+
+    const enableAudio = async () => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)()
+        masterGainRef.current = audioContextRef.current.createGain()
+        masterGainRef.current.gain.value = 0.32
+        masterGainRef.current.connect(audioContextRef.current.destination)
+      }
+
+      if (audioContextRef.current.state !== 'running') {
+        await audioContextRef.current.resume()
+      }
+
+      audioEnabledRef.current = true
+    }
+
+    const playTone = (index) => {
+      if (!audioEnabledRef.current) return
+      const nowIndex = Math.max(0, Math.min(index, introNotes.length - 1))
+      const context = audioContextRef.current
+      const now = context?.currentTime ?? 0
+      const lastPlayed = lastPlayedRef.current[nowIndex] ?? 0
+      if (now - lastPlayed < 0.08) return
+
+      const masterGain = masterGainRef.current
+      if (!context || !masterGain) return
+
+      const frequency = introNotes[nowIndex]
+      const nowTime = context.currentTime
+      const output = context.createGain()
+      output.gain.setValueAtTime(0.0001, nowTime)
+      output.gain.exponentialRampToValueAtTime(0.45, nowTime + 0.02)
+      output.gain.exponentialRampToValueAtTime(0.0001, nowTime + 0.9)
+
+      const filter = context.createBiquadFilter()
+      filter.type = 'lowpass'
+      filter.frequency.setValueAtTime(frequency * 6, nowTime)
+      filter.frequency.exponentialRampToValueAtTime(frequency * 2.2, nowTime + 0.7)
+      filter.Q.value = 0.7
+      output.connect(filter)
+      filter.connect(masterGain)
+
+      const delay = context.createDelay()
+      delay.delayTime.value = 0.14
+      const delayGain = context.createGain()
+      delayGain.gain.value = 0.2
+      output.connect(delay)
+      delay.connect(delayGain)
+      delayGain.connect(masterGain)
+
+      const createPartial = (multiplier, detune, gainValue, type) => {
+        const osc = context.createOscillator()
+        const oscGain = context.createGain()
+        osc.type = type
+        osc.frequency.value = frequency * multiplier
+        osc.detune.value = detune
+        oscGain.gain.value = gainValue
+        osc.connect(oscGain)
+        oscGain.connect(output)
+        osc.start(nowTime)
+        osc.stop(nowTime + 1)
+      }
+
+      createPartial(1, -3, 0.55, 'triangle')
+      createPartial(2, 2, 0.2, 'sine')
+      createPartial(3, -1, 0.1, 'sine')
+
+      const hammerBuffer = context.createBuffer(
+        1,
+        Math.floor(context.sampleRate * 0.03),
+        context.sampleRate,
+      )
+      const hammerData = hammerBuffer.getChannelData(0)
+      for (let i = 0; i < hammerData.length; i += 1) {
+        hammerData[i] = (Math.random() * 2 - 1) * (1 - i / hammerData.length)
+      }
+      const hammerNoise = context.createBufferSource()
+      hammerNoise.buffer = hammerBuffer
+      const hammerFilter = context.createBiquadFilter()
+      hammerFilter.type = 'highpass'
+      hammerFilter.frequency.value = frequency * 3
+      const hammerGain = context.createGain()
+      hammerGain.gain.setValueAtTime(0.0001, nowTime)
+      hammerGain.gain.exponentialRampToValueAtTime(0.12, nowTime + 0.005)
+      hammerGain.gain.exponentialRampToValueAtTime(0.0001, nowTime + 0.05)
+      hammerNoise.connect(hammerFilter)
+      hammerFilter.connect(hammerGain)
+      hammerGain.connect(output)
+      hammerNoise.start(nowTime)
+      hammerNoise.stop(nowTime + 0.06)
+      lastPlayedRef.current[nowIndex] = context.currentTime
+    }
+
+    const handleMove = (event) => {
+      const rect = title.getBoundingClientRect()
+      const clampedX = Math.min(Math.max(event.clientX - rect.left, 0), rect.width)
+      const ratio = rect.width > 0 ? clampedX / rect.width : 0
+      const splitIndex = Math.round(ratio * (letters.length - 1))
+
+      if (splitIndex !== lastSplitRef.current) {
+        lastSplitRef.current = splitIndex
+        playTone(splitIndex % introNotes.length)
+      }
+
+      letters.forEach((letter, index) => {
+        if (!letter) return
+        const direction = index <= splitIndex ? -1 : 1
+        const distance = Math.abs(index - splitIndex)
+        const intensity = Math.max(0, 1 - distance / 5)
+        const offset = intensity * 48 * direction
+        const depth = intensity * 60
+        letter.style.setProperty('--split-offset', `${offset}px`)
+        letter.style.setProperty('--split-z', `${depth}px`)
+      })
+    }
+
+    const handleLeave = () => {
+      letters.forEach((letter) => {
+        if (!letter) return
+        letter.style.setProperty('--split-offset', '0px')
+        letter.style.setProperty('--split-z', '0px')
+      })
+      lastSplitRef.current = -1
+    }
+
+    const handlePointerDown = async (event) => {
+      await enableAudio()
+      handleMove(event)
+    }
+
+    stage.addEventListener('pointerdown', handlePointerDown)
+    stage.addEventListener('pointermove', handleMove)
+    stage.addEventListener('pointerleave', handleLeave)
+
+    return () => {
+      stage.removeEventListener('pointerdown', handlePointerDown)
+      stage.removeEventListener('pointermove', handleMove)
+      stage.removeEventListener('pointerleave', handleLeave)
+    }
+  }, [introLetters.length])
+
+  const setIntroLetterRef = (node, index) => {
+    introLettersRef.current[index] = node
+  }
+
   return (
     <div className="app">
       <MeshBackground />
@@ -338,6 +503,21 @@ function App() {
       </nav>
 
       <main>
+        <section className="intro scroll-panel" id="intro" ref={setSectionRef}>
+          <div className="intro-stage" ref={introStageRef}>
+            <h1 className="intro-title" data-text={introName} ref={introTitleRef}>
+              {introLetters.map((char, index) => (
+                <span
+                  key={`${char}-${index}`}
+                  ref={(node) => setIntroLetterRef(node, index)}
+                  className={`intro-letter${char === ' ' ? ' space' : ''}`}
+                >
+                  {char === ' ' ? '\u00A0' : char}
+                </span>
+              ))}
+            </h1>
+          </div>
+        </section>
         <section className="hero scroll-panel" id="home" ref={setSectionRef}>
           <div className="hero-inner">
             <div className="hero-copy">
